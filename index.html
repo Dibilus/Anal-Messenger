@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Общий чат</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-analytics-compat.js"></script>
+    
+    <style>
+        /* Стили остаются такими же как в предыдущем примере */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #6e8efb, #a777e3);
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+        }
+        
+        /* ... остальные стили ... */
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- HTML структура чата -->
+    </div>
+
+    <script>
+        // Ваша конфигурация Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyAE0RJ5LEQ0AQT6G05UHc15FSTilVqu0vc",
+            authDomain: "anal-messenger.firebaseapp.com",
+            projectId: "anal-messenger",
+            storageBucket: "anal-messenger.firebasestorage.app",
+            messagingSenderId: "302872384307",
+            appId: "1:302872384307:web:48ef1f9af350a0d476e446",
+            measurementId: "G-JLEBH7264W"
+        };
+
+        // Инициализация Firebase
+        const app = firebase.initializeApp(firebaseConfig);
+        const analytics = firebase.analytics();
+        const db = firebase.firestore();
+
+        // Остальной код чата...
+        let username = '';
+        
+        // Вход в чат
+        document.getElementById('loginButton').addEventListener('click', () => {
+            username = document.getElementById('usernameInput').value.trim();
+            if (username) {
+                document.getElementById('currentUsername').textContent = username;
+                document.getElementById('loginSection').style.display = 'none';
+                document.getElementById('chatSection').style.display = 'flex';
+                loadMessages();
+            } else {
+                alert('Пожалуйста, введите ваше имя');
+            }
+        });
+
+        // Отправка сообщения
+        function sendMessage() {
+            const messageText = document.getElementById('messageInput').value.trim();
+            if (messageText && username) {
+                db.collection('messages').add({
+                    text: messageText,
+                    sender: username,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                })
+                .then(() => {
+                    document.getElementById('messageInput').value = '';
+                })
+                .catch((error) => {
+                    console.error('Ошибка отправки сообщения: ', error);
+                });
+            }
+        }
+
+        // Загрузка сообщений
+        function loadMessages() {
+            db.collection('messages')
+                .orderBy('timestamp', 'desc')
+                .limit(50)
+                .onSnapshot((querySnapshot) => {
+                    const messages = [];
+                    querySnapshot.forEach((doc) => {
+                        messages.push(doc.data());
+                    });
+                    displayMessages(messages.reverse());
+                });
+        }
+
+        // ... остальные функции ...
+    </script>
+</body>
+</html>
