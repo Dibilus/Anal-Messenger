@@ -3,15 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Общий чат</title>
-    
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-analytics-compat.js"></script>
-    
+    <title>Общий чат Messenger</title>
     <style>
-        /* Стили остаются такими же как в предыдущем примере */
         * {
             box-sizing: border-box;
             margin: 0;
@@ -32,73 +25,327 @@
         .container {
             max-width: 800px;
             width: 100%;
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.95);
             border-radius: 12px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
             overflow: hidden;
         }
         
-        /* ... остальные стили ... */
+        header {
+            background: #4e73df;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+        
+        .subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .login-section, .chat-section {
+            padding: 20px;
+        }
+        
+        .login-section {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .chat-section {
+            display: none;
+            flex-direction: column;
+            height: 500px;
+        }
+        
+        input {
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            width: 100%;
+            max-width: 300px;
+            font-size: 16px;
+        }
+        
+        button {
+            background: #4e73df;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+        
+        button:hover {
+            background: #3a56c4;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            background: #f9f9f9;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .message {
+            padding: 12px 15px;
+            border-radius: 8px;
+            max-width: 80%;
+            word-break: break-word;
+        }
+        
+        .my-message {
+            background: #e1f0ff;
+            align-self: flex-end;
+        }
+        
+        .other-message {
+            background: #f1f1f1;
+            align-self: flex-start;
+        }
+        
+        .message-sender {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #4e73df;
+        }
+        
+        .message-time {
+            font-size: 12px;
+            color: #888;
+            text-align: right;
+            margin-top: 5px;
+        }
+        
+        .message-input {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .message-input input {
+            flex: 1;
+            max-width: none;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f1f1f1;
+            border-radius: 8px;
+        }
+        
+        .online-indicator {
+            width: 12px;
+            height: 12px;
+            background: #36b37e;
+            border-radius: 50%;
+        }
+        
+        .error-panel {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            display: none;
+        }
+        
+        .github-info {
+            background: #f5f5f5;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        
+        @media (max-width: 600px) {
+            .message {
+                max-width: 90%;
+            }
+            
+            .message-input {
+                flex-direction: column;
+            }
+            
+            button {
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- HTML структура чата -->
+        <header>
+            <h1>Общий чат Messenger</h1>
+            <div class="subtitle">Подключитесь и общайтесь с другими пользователями</div>
+        </header>
+        
+        <div class="error-panel" id="errorPanel">
+            <strong>Ошибка Firebase:</strong> Не удалось подключиться к базе данных. Проверьте настройки Firebase.
+        </div>
+        
+        <div class="login-section" id="loginSection">
+            <h2>Введите ваше имя</h2>
+            <input type="text" id="usernameInput" placeholder="Ваше имя">
+            <button id="loginButton">Войти в чат</button>
+        </div>
+        
+        <div class="chat-section" id="chatSection">
+            <div class="user-info">
+                <div class="online-indicator"></div>
+                <div>Вы: <span id="currentUsername"></span></div>
+            </div>
+            
+            <div class="chat-messages" id="chatMessages">
+                <div class="message other-message">
+                    <div class="message-sender">Система</div>
+                    <div>Добро пожаловать в общий чат! Начните общение с другими пользователями.</div>
+                    <div class="message-time">Только что</div>
+                </div>
+            </div>
+            
+            <div class="message-input">
+                <input type="text" id="messageInput" placeholder="Введите ваше сообщение...">
+                <button id="sendButton">Отправить</button>
+            </div>
+        </div>
+        
+        <div class="github-info">
+            <h3>Информация:</h3>
+            <p>Это демо-версия мессенджера. Для полноценной работы необходимо настроить Firebase.</p>
+        </div>
     </div>
 
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
     <script>
-        // Ваша конфигурация Firebase
+        // Конфигурация Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyAE0RJ5LEQ0AQT6G05UHc15FSTilVqu0vc",
             authDomain: "anal-messenger.firebaseapp.com",
             projectId: "anal-messenger",
             storageBucket: "anal-messenger.firebasestorage.app",
             messagingSenderId: "302872384307",
-            appId: "1:302872384307:web:48ef1f9af350a0d476e446",
-            measurementId: "G-JLEBH7264W"
+            appId: "1:302872384307:web:48ef1f9af350a0d476e446"
         };
 
-        // Инициализация Firebase
-        const app = firebase.initializeApp(firebaseConfig);
-        const analytics = firebase.analytics();
-        const db = firebase.firestore();
+        // Попытка инициализации Firebase
+        let db;
+        try {
+            const app = firebase.initializeApp(firebaseConfig);
+            db = firebase.firestore();
+            document.getElementById('errorPanel').style.display = 'none';
+        } catch (error) {
+            console.error('Ошибка инициализации Firebase:', error);
+            document.getElementById('errorPanel').style.display = 'block';
+            document.getElementById('errorPanel').innerHTML = 
+                `<strong>Ошибка Firebase:</strong> ${error.message}. Проверьте настройки Firebase.`;
+        }
 
-        // Остальной код чата...
+        // Элементы DOM
+        const loginSection = document.getElementById('loginSection');
+        const chatSection = document.getElementById('chatSection');
+        const usernameInput = document.getElementById('usernameInput');
+        const loginButton = document.getElementById('loginButton');
+        const currentUsername = document.getElementById('currentUsername');
+        const chatMessages = document.getElementById('chatMessages');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const errorPanel = document.getElementById('errorPanel');
+        
         let username = '';
         
         // Вход в чат
-        document.getElementById('loginButton').addEventListener('click', () => {
-            username = document.getElementById('usernameInput').value.trim();
+        loginButton.addEventListener('click', () => {
+            username = usernameInput.value.trim();
             if (username) {
-                document.getElementById('currentUsername').textContent = username;
-                document.getElementById('loginSection').style.display = 'none';
-                document.getElementById('chatSection').style.display = 'flex';
-                loadMessages();
+                currentUsername.textContent = username;
+                loginSection.style.display = 'none';
+                chatSection.style.display = 'flex';
+                if (db) {
+                    loadMessages();
+                } else {
+                    displayDemoMessages();
+                }
             } else {
                 alert('Пожалуйста, введите ваше имя');
             }
         });
-
+        
         // Отправка сообщения
+        sendButton.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        
         function sendMessage() {
-            const messageText = document.getElementById('messageInput').value.trim();
+            const messageText = messageInput.value.trim();
             if (messageText && username) {
-                db.collection('messages').add({
-                    text: messageText,
-                    sender: username,
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                })
-                .then(() => {
-                    document.getElementById('messageInput').value = '';
-                })
-                .catch((error) => {
-                    console.error('Ошибка отправки сообщения: ', error);
-                });
+                if (db) {
+                    // Добавление сообщения в Firestore
+                    db.collection('messages').add({
+                        text: messageText,
+                        sender: username,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    })
+                    .then(() => {
+                        messageInput.value = '';
+                    })
+                    .catch((error) => {
+                        console.error('Ошибка отправки сообщения: ', error);
+                        errorPanel.style.display = 'block';
+                        errorPanel.innerHTML = `<strong>Ошибка Firebase:</strong> ${error.message}. Проверьте настройки Firebase.`;
+                    });
+                } else {
+                    // Демо-режим
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = 'message my-message';
+                    messageDiv.innerHTML = `
+                        <div class="message-sender">${username}</div>
+                        <div>${messageText}</div>
+                        <div class="message-time">Только что</div>
+                    `;
+                    
+                    chatMessages.appendChild(messageDiv);
+                    messageInput.value = '';
+                    
+                    // Прокрутка вниз
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
             }
         }
-
+        
         // Загрузка сообщений
         function loadMessages() {
+            if (!db) {
+                displayDemoMessages();
+                return;
+            }
+            
+            // Загрузка последних 50 сообщений
             db.collection('messages')
                 .orderBy('timestamp', 'desc')
                 .limit(50)
@@ -107,11 +354,74 @@
                     querySnapshot.forEach((doc) => {
                         messages.push(doc.data());
                     });
+                    
+                    // Отображаем сообщения в обратном порядке (самые новые внизу)
                     displayMessages(messages.reverse());
+                }, (error) => {
+                    console.error('Ошибка загрузки сообщений: ', error);
+                    errorPanel.style.display = 'block';
+                    errorPanel.innerHTML = `<strong>Ошибка Firebase:</strong> ${error.message}. Проверьте настройки Firebase.`;
+                    
+                    // Показываем демо-сообщения в случае ошибки
+                    displayDemoMessages();
                 });
         }
-
-        // ... остальные функции ...
+        
+        function displayMessages(messages) {
+            chatMessages.innerHTML = '';
+            
+            if (messages.length === 0) {
+                chatMessages.innerHTML = `
+                    <div class="message other-message">
+                        <div class="message-sender">Система</div>
+                        <div>Пока нет сообщений. Будьте первым!</div>
+                        <div class="message-time">Только что</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            messages.forEach((msg) => {
+                const messageDiv = document.createElement('div');
+                const isMyMessage = msg.sender === username;
+                
+                messageDiv.className = isMyMessage ? 'message my-message' : 'message other-message';
+                
+                const messageTime = msg.timestamp ? 
+                    new Date(msg.timestamp.toDate()).toLocaleTimeString() : 'Только что';
+                
+                messageDiv.innerHTML = `
+                    <div class="message-sender">${msg.sender}</div>
+                    <div>${msg.text}</div>
+                    <div class="message-time">${messageTime}</div>
+                `;
+                
+                chatMessages.appendChild(messageDiv);
+            });
+            
+            // Прокрутка вниз
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        function displayDemoMessages() {
+            chatMessages.innerHTML = `
+                <div class="message other-message">
+                    <div class="message-sender">Система</div>
+                    <div>Режим демонстрации. Для реального чата настройте Firebase.</div>
+                    <div class="message-time">Только что</div>
+                </div>
+                <div class="message other-message">
+                    <div class="message-sender">Андрей</div>
+                    <div>Привет! Как дела?</div>
+                    <div class="message-time">12:30</div>
+                </div>
+                <div class="message other-message">
+                    <div class="message-sender">Мария</div>
+                    <div>Кто-нибудь уже пробовал новый ресторан в центре?</div>
+                    <div class="message-time">12:45</div>
+                </div>
+            `;
+        }
     </script>
 </body>
 </html>
