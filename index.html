@@ -26,12 +26,80 @@
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             z-index: 10;
             flex-shrink: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         
         .header h1 {
             font-size: 24px;
             font-weight: 600;
             color: #4a5568;
+        }
+        
+        .online-counter {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #edf2f7;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            color: #4a5568;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .online-counter:hover {
+            background: #e2e8f0;
+        }
+        
+        .online-dot {
+            width: 10px;
+            height: 10px;
+            background: #48bb78;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .online-tooltip {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            min-width: 200px;
+            display: none;
+        }
+        
+        .online-tooltip h3 {
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #4a5568;
+        }
+        
+        .online-user {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 0;
+        }
+        
+        .online-user-dot {
+            width: 8px;
+            height: 8px;
+            background: #48bb78;
+            border-radius: 50%;
         }
         
         .main-container {
@@ -219,6 +287,26 @@
             margin: 8px 0;
         }
         
+        .user-joined {
+            align-self: center;
+            background: #ebf8ff;
+            color: #3182ce;
+            padding: 8px 16px;
+            border-radius: 16px;
+            font-size: 14px;
+            margin: 8px 0;
+        }
+        
+        .user-left {
+            align-self: center;
+            background: #fed7d7;
+            color: #e53e3e;
+            padding: 8px 16px;
+            border-radius: 16px;
+            font-size: 14px;
+            margin: 8px 0;
+        }
+        
         @media (max-width: 768px) {
             .message {
                 max-width: 85%;
@@ -228,12 +316,23 @@
                 font-size: 20px;
             }
             
+            .online-counter {
+                font-size: 12px;
+                padding: 6px 10px;
+            }
+            
             .message-input-container {
                 padding: 12px;
             }
             
             .message-input-container button {
                 padding: 12px 16px;
+            }
+            
+            .online-tooltip {
+                right: 10px;
+                left: 10px;
+                min-width: auto;
             }
         }
         
@@ -261,6 +360,14 @@
     <div class="main-container">
         <div class="header">
             <h1>Anal Messenger</h1>
+            <div class="online-counter" id="onlineCounter">
+                <div class="online-dot"></div>
+                <span id="onlineCount">0 онлайн</span>
+                <div class="online-tooltip" id="onlineTooltip">
+                    <h3>Сейчас онлайн:</h3>
+                    <div id="onlineUsersList"></div>
+                </div>
+            </div>
         </div>
         
         <div class="chat-container">
@@ -293,6 +400,7 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 
     <script>
         // Конфигурация Firebase
@@ -307,9 +415,11 @@
 
         // Попытка инициализации Firebase
         let db;
+        let auth;
         try {
             const app = firebase.initializeApp(firebaseConfig);
             db = firebase.firestore();
+            auth = firebase.auth();
         } catch (error) {
             console.error('Ошибка инициализации Firebase:', error);
         }
@@ -323,24 +433,207 @@
         const chatMessages = document.getElementById('chatMessages');
         const messageInput = document.getElementById('messageInput');
         const sendButton = document.getElementById('sendButton');
+        const onlineCounter = document.getElementById('onlineCounter');
+        const onlineCount = document.getElementById('onlineCount');
+        const onlineTooltip = document.getElementById('onlineTooltip');
+        const onlineUsersList = document.getElementById('onlineUsersList');
         
         let username = '';
-        
+        let userId = '';
+        let onlineUsers = {};
+        let presenceRef;
+
+        // Генерация уникального ID для пользователя (fallback)
+        function generateUserId() {
+            return 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+        }
+
         // Вход в чат
-        loginButton.addEventListener('click', () => {
+        loginButton.addEventListener('click', async () => {
             username = usernameInput.value.trim();
             if (username) {
-                currentUsername.textContent = username;
-                loginSection.style.display = 'none';
-                chatSection.style.display = 'flex';
-                if (db) {
-                    loadMessages();
-                } else {
+                try {
+                    if (auth && db) {
+                        // Анонимная аутентификация
+                        const userCredential = await auth.signInAnonymously();
+                        userId = userCredential.user.uid;
+                    } else {
+                        userId = generateUserId();
+                    }
+                    
+                    currentUsername.textContent = username;
+                    loginSection.style.display = 'none';
+                    chatSection.style.display = 'flex';
+                    
+                    if (db) {
+                        setupPresence();
+                        loadMessages();
+                    } else {
+                        displayDemoMessages();
+                        onlineCount.textContent = '1 онлайн';
+                    }
+                } catch (error) {
+                    console.error('Ошибка входа:', error);
+                    // Fallback режим
+                    userId = generateUserId();
+                    currentUsername.textContent = username;
+                    loginSection.style.display = 'none';
+                    chatSection.style.display = 'flex';
                     displayDemoMessages();
+                    onlineCount.textContent = '1 онлайн';
                 }
             } else {
                 alert('Пожалуйста, введите ваше имя');
             }
+        });
+        
+        // Настройка системы присутствия
+        function setupPresence() {
+            if (!db) return;
+            
+            // Ссылка на статус текущего пользователя
+            presenceRef = db.collection('status').doc(userId);
+            
+            // Устанавливаем статус онлайн
+            presenceRef.set({
+                state: 'online',
+                username: username,
+                lastChanged: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            
+            // Автоматическая установка offline при закрытии страницы
+            presenceRef.onDisconnect().set({
+                state: 'offline',
+                username: username,
+                lastChanged: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            
+            // Отслеживаем онлайн пользователей
+            db.collection('status')
+                .where('state', '==', 'online')
+                .onSnapshot((snapshot) => {
+                    const users = {};
+                    snapshot.forEach((doc) => {
+                        if (doc.id !== userId) { // Исключаем себя из уведомлений
+                            const userData = doc.data();
+                            // Показываем уведомления о входе/выходе
+                            if (!onlineUsers[doc.id] && userData.username) {
+                                showUserJoined(userData.username);
+                            }
+                        }
+                        users[doc.id] = doc.data();
+                    });
+                    
+                    // Проверяем кто вышел
+                    Object.keys(onlineUsers).forEach(userId => {
+                        if (!users[userId] && onlineUsers[userId] && onlineUsers[userId].username) {
+                            showUserLeft(onlineUsers[userId].username);
+                        }
+                    });
+                    
+                    onlineUsers = users;
+                    updateOnlineCounter();
+                });
+            
+            // Запускаем очистку старых статусов
+            setInterval(cleanupOldStatuses, 300000); // Каждые 5 минут
+        }
+        
+        // Обновление счетчика онлайн
+        function updateOnlineCounter() {
+            const count = Object.keys(onlineUsers).length;
+            onlineCount.textContent = `${count} онлайн`;
+            
+            // Обновляем список пользователей во всплывающем окне
+            updateOnlineUsersList();
+        }
+        
+        // Обновление списка онлайн-пользователей
+        function updateOnlineUsersList() {
+            onlineUsersList.innerHTML = '';
+            
+            Object.values(onlineUsers).forEach(user => {
+                if (user.username && user.state === 'online') {
+                    const userElement = document.createElement('div');
+                    userElement.className = 'online-user';
+                    userElement.innerHTML = `
+                        <div class="online-user-dot"></div>
+                        <span>${user.username}</span>
+                    `;
+                    onlineUsersList.appendChild(userElement);
+                }
+            });
+            
+            if (onlineUsersList.children.length === 0) {
+                onlineUsersList.innerHTML = '<div>Нет других пользователей</div>';
+            }
+        }
+        
+        // Показать уведомление о входе пользователя
+        function showUserJoined(userName) {
+            if (userName === username) return;
+            
+            const joinDiv = document.createElement('div');
+            joinDiv.className = 'user-joined';
+            joinDiv.textContent = `${userName} присоединился к чату`;
+            
+            chatMessages.appendChild(joinDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            // Автоскрытие через 5 секунд
+            setTimeout(() => {
+                joinDiv.remove();
+            }, 5000);
+        }
+        
+        // Показать уведомление о выходе пользователя
+        function showUserLeft(userName) {
+            if (userName === username) return;
+            
+            const leftDiv = document.createElement('div');
+            leftDiv.className = 'user-left';
+            leftDiv.textContent = `${userName} покинул чат`;
+            
+            chatMessages.appendChild(leftDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            // Автоскрытие через 5 секунд
+            setTimeout(() => {
+                leftDiv.remove();
+            }, 5000);
+        }
+        
+        // Очистка старых статусов
+        async function cleanupOldStatuses() {
+            if (!db) return;
+            
+            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+            
+            try {
+                const oldStatuses = await db.collection('status')
+                    .where('lastChanged', '<', fiveMinutesAgo)
+                    .get();
+                
+                const batch = db.batch();
+                oldStatuses.forEach(doc => {
+                    batch.delete(doc.ref);
+                });
+                
+                await batch.commit();
+            } catch (error) {
+                console.error('Ошибка очистки статусов:', error);
+            }
+        }
+        
+        // Показать/скрыть список пользователей
+        onlineCounter.addEventListener('mouseenter', () => {
+            if (Object.keys(onlineUsers).length > 0) {
+                onlineTooltip.style.display = 'block';
+            }
+        });
+        
+        onlineCounter.addEventListener('mouseleave', () => {
+            onlineTooltip.style.display = 'none';
         });
         
         // Отправка сообщения
@@ -473,6 +766,17 @@
                 chatMessages.scrollTop = chatMessages.scrollHeight;
             }, 100);
         }
+        
+        // Очистка статуса при закрытии страницы
+        window.addEventListener('beforeunload', () => {
+            if (presenceRef) {
+                presenceRef.set({
+                    state: 'offline',
+                    username: username,
+                    lastChanged: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            }
+        });
     </script>
 </body>
 </html>
