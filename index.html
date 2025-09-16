@@ -48,6 +48,7 @@
             color: #4a5568;
             cursor: pointer;
             transition: background-color 0.2s;
+            position: relative;
         }
         
         .online-counter:hover {
@@ -80,12 +81,15 @@
             z-index: 1000;
             min-width: 200px;
             display: none;
+            margin-top: 5px;
         }
         
         .online-tooltip h3 {
             margin-bottom: 8px;
             font-size: 14px;
             color: #4a5568;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 5px;
         }
         
         .online-user {
@@ -307,6 +311,17 @@
             margin: 8px 0;
         }
         
+        .error-message {
+            align-self: center;
+            background: #fed7d7;
+            color: #e53e3e;
+            padding: 8px 16px;
+            border-radius: 16px;
+            font-size: 14px;
+            margin: 8px 0;
+            text-align: center;
+        }
+        
         @media (max-width: 768px) {
             .message {
                 max-width: 85%;
@@ -420,6 +435,7 @@
             const app = firebase.initializeApp(firebaseConfig);
             db = firebase.firestore();
             auth = firebase.auth();
+            console.log('Firebase инициализирован успешно');
         } catch (error) {
             console.error('Ошибка инициализации Firebase:', error);
         }
@@ -454,11 +470,14 @@
             if (username) {
                 try {
                     if (auth && db) {
+                        console.log('Попытка аутентификации...');
                         // Анонимная аутентификация
                         const userCredential = await auth.signInAnonymously();
                         userId = userCredential.user.uid;
+                        console.log('Аутентификация успешна, userId:', userId);
                     } else {
                         userId = generateUserId();
+                        console.log('Режим без аутентификации, userId:', userId);
                     }
                     
                     currentUsername.textContent = username;
@@ -481,6 +500,12 @@
                     chatSection.style.display = 'flex';
                     displayDemoMessages();
                     onlineCount.textContent = '1 онлайн';
+                    
+                    // Показываем предупреждение
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'error-message';
+                    errorDiv.textContent = 'Режим демонстрации. Сообщения не сохраняются.';
+                    chatMessages.appendChild(errorDiv);
                 }
             } else {
                 alert('Пожалуйста, введите ваше имя');
@@ -499,6 +524,10 @@
                 state: 'online',
                 username: username,
                 lastChanged: firebase.firestore.FieldValue.serverTimestamp()
+            }).then(() => {
+                console.log('Статус онлайн установлен');
+            }).catch(error => {
+                console.error('Ошибка установки статуса:', error);
             });
             
             // Автоматическая установка offline при закрытии страницы
@@ -506,6 +535,10 @@
                 state: 'offline',
                 username: username,
                 lastChanged: firebase.firestore.FieldValue.serverTimestamp()
+            }).then(() => {
+                console.log('OnDisconnect настроен');
+            }).catch(error => {
+                console.error('Ошибка onDisconnect:', error);
             });
             
             // Отслеживаем онлайн пользователей
@@ -533,6 +566,8 @@
                     
                     onlineUsers = users;
                     updateOnlineCounter();
+                }, (error) => {
+                    console.error('Ошибка отслеживания статусов:', error);
                 });
             
             // Запускаем очистку старых статусов
@@ -620,6 +655,7 @@
                 });
                 
                 await batch.commit();
+                console.log('Очищено старых статусов:', oldStatuses.size);
             } catch (error) {
                 console.error('Ошибка очистки статусов:', error);
             }
@@ -645,56 +681,60 @@
         });
         
         function sendMessage() {
-    const messageText = messageInput.value.trim();
-    if (messageText && username) {
-        if (db) {
-            // Добавление сообщения в Firestore
-            db.collection('messages').add({
-                text: messageText,
-                sender: username,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                userId: userId // Добавляем ID пользователя
-            })
-            .then(() => {
-                messageInput.value = '';
-                console.log('Сообщение отправлено');
-            })
-            .catch((error) => {
-                console.error('Ошибка отправки сообщения: ', error);
-                // Показываем ошибку пользователю
-                alert('Ошибка отправки: ' + error.message);
-                
-                // Fallback: показываем сообщение локально
-                const messageDiv = document.createElement('div');
-                messageDiv.className = 'message my-message';
-                messageDiv.innerHTML = `
-                    <div class="message-sender">${username}</div>
-                    <div>${messageText}</div>
-                    <div class="message-time">Только что (оффлайн)</div>
-                `;
-                
-                chatMessages.appendChild(messageDiv);
-                messageInput.value = '';
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-            });
-        } else {
-            // Демо-режим
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'message my-message';
-            messageDiv.innerHTML = `
-                <div class="message-sender">${username}</div>
-                <div>${messageText}</div>
-                <div class="message-time">Только что</div>
-            `;
-            
-            chatMessages.appendChild(messageDiv);
-            messageInput.value = '';
-            
-            // Прокрутка вниз
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+            const messageText = messageInput.value.trim();
+            if (messageText && username) {
+                if (db) {
+                    // Добавление сообщения в Firestore
+                    db.collection('messages').add({
+                        text: messageText,
+                        sender: username,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                        userId: userId
+                    })
+                    .then(() => {
+                        messageInput.value = '';
+                        console.log('Сообщение отправлено успешно');
+                    })
+                    .catch((error) => {
+                        console.error('Ошибка отправки сообщения: ', error);
+                        
+                        // Показываем сообщение локально в случае ошибки
+                        const messageDiv = document.createElement('div');
+                        messageDiv.className = 'message my-message';
+                        messageDiv.innerHTML = `
+                            <div class="message-sender">${username}</div>
+                            <div>${messageText}</div>
+                            <div class="message-time">Только что (оффлайн)</div>
+                        `;
+                        
+                        chatMessages.appendChild(messageDiv);
+                        messageInput.value = '';
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                        
+                        // Показываем ошибку
+                        const errorDiv = document.createElement('div');
+                        errorDiv.className = 'error-message';
+                        errorDiv.textContent = 'Ошибка отправки. Проверьте подключение.';
+                        chatMessages.appendChild(errorDiv);
+                    });
+                } else {
+                    // Демо-режим
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = 'message my-message';
+                    messageDiv.innerHTML = `
+                        <div class="message-sender">${username}</div>
+                        <div>${messageText}</div>
+                        <div class="message-time">Только что</div>
+                    `;
+                    
+                    chatMessages.appendChild(messageDiv);
+                    messageInput.value = '';
+                    
+                    // Прокрутка вниз
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
+            }
         }
-    }
-}
         
         // Загрузка сообщений
         function loadMessages() {
@@ -703,22 +743,29 @@
                 return;
             }
             
-            // Загрузка последних 50 сообщений
+            // Загрузка сообщений
             db.collection('messages')
-                .orderBy('timestamp', 'desc')
-                .limit(500)
+                .orderBy('timestamp', 'asc') // Изменено на asc для правильного порядка
+                .limit(100)
                 .onSnapshot((querySnapshot) => {
                     const messages = [];
                     querySnapshot.forEach((doc) => {
-                        messages.push(doc.data());
+                        messages.push({
+                            id: doc.id,
+                            ...doc.data()
+                        });
                     });
                     
-                    // Отображаем сообщения в обратном порядке (самые новые внизу)
-                    displayMessages(messages.reverse());
+                    displayMessages(messages);
                 }, (error) => {
                     console.error('Ошибка загрузки сообщений: ', error);
                     // Показываем демо-сообщения в случае ошибки
                     displayDemoMessages();
+                    
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'error-message';
+                    errorDiv.textContent = 'Ошибка загрузки сообщений';
+                    chatMessages.appendChild(errorDiv);
                 });
         }
         
@@ -771,11 +818,6 @@
                     <div>Кто-нибудь уже пробовал новый ресторан в центре?</div>
                     <div class="message-time">12:45</div>
                 </div>
-                <div class="message my-message">
-                    <div class="message-sender">Вы</div>
-                    <div>Привет всем! Я только что присоединился к чату.</div>
-                    <div class="message-time">Только что</div>
-                </div>
             `;
             
             // Прокрутка вниз
@@ -791,9 +833,25 @@
                     state: 'offline',
                     username: username,
                     lastChanged: firebase.firestore.FieldValue.serverTimestamp()
+                }).catch(error => {
+                    console.error('Ошибка при установке offline статуса:', error);
                 });
             }
         });
+
+        // Включение подсказки при наведении
+        onlineCounter.addEventListener('mouseenter', showOnlineTooltip);
+        onlineCounter.addEventListener('mouseleave', hideOnlineTooltip);
+
+        function showOnlineTooltip() {
+            if (Object.keys(onlineUsers).length > 1) { // Больше 1 (себя не считаем)
+                onlineTooltip.style.display = 'block';
+            }
+        }
+
+        function hideOnlineTooltip() {
+            onlineTooltip.style.display = 'none';
+        }
     </script>
 </body>
 </html>
