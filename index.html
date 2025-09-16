@@ -645,39 +645,56 @@
         });
         
         function sendMessage() {
-            const messageText = messageInput.value.trim();
-            if (messageText && username) {
-                if (db) {
-                    // Добавление сообщения в Firestore
-                    db.collection('messages').add({
-                        text: messageText,
-                        sender: username,
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                    })
-                    .then(() => {
-                        messageInput.value = '';
-                    })
-                    .catch((error) => {
-                        console.error('Ошибка отправки сообщения: ', error);
-                    });
-                } else {
-                    // Демо-режим
-                    const messageDiv = document.createElement('div');
-                    messageDiv.className = 'message my-message';
-                    messageDiv.innerHTML = `
-                        <div class="message-sender">${username}</div>
-                        <div>${messageText}</div>
-                        <div class="message-time">Только что</div>
-                    `;
-                    
-                    chatMessages.appendChild(messageDiv);
-                    messageInput.value = '';
-                    
-                    // Прокрутка вниз
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
-                }
-            }
+    const messageText = messageInput.value.trim();
+    if (messageText && username) {
+        if (db) {
+            // Добавление сообщения в Firestore
+            db.collection('messages').add({
+                text: messageText,
+                sender: username,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                userId: userId // Добавляем ID пользователя
+            })
+            .then(() => {
+                messageInput.value = '';
+                console.log('Сообщение отправлено');
+            })
+            .catch((error) => {
+                console.error('Ошибка отправки сообщения: ', error);
+                // Показываем ошибку пользователю
+                alert('Ошибка отправки: ' + error.message);
+                
+                // Fallback: показываем сообщение локально
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message my-message';
+                messageDiv.innerHTML = `
+                    <div class="message-sender">${username}</div>
+                    <div>${messageText}</div>
+                    <div class="message-time">Только что (оффлайн)</div>
+                `;
+                
+                chatMessages.appendChild(messageDiv);
+                messageInput.value = '';
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            });
+        } else {
+            // Демо-режим
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message my-message';
+            messageDiv.innerHTML = `
+                <div class="message-sender">${username}</div>
+                <div>${messageText}</div>
+                <div class="message-time">Только что</div>
+            `;
+            
+            chatMessages.appendChild(messageDiv);
+            messageInput.value = '';
+            
+            // Прокрутка вниз
+            chatMessages.scrollTop = chatMessages.scrollHeight;
         }
+    }
+}
         
         // Загрузка сообщений
         function loadMessages() {
