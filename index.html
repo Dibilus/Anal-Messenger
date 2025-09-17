@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Общий чат</title>
+    <title>Anal Messenger</title>
     <style>
         * {
             box-sizing: border-box;
@@ -26,6 +26,9 @@
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             z-index: 10;
             flex-shrink: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         
         .header h1 {
@@ -105,7 +108,6 @@
             font-size: 16px;
             font-weight: 600;
             transition: background 0.2s;
-            width: 100%;
         }
         
         button:hover {
@@ -152,7 +154,7 @@
         
         .message-sender {
             font-weight: 600;
-            margin-bottom: 4px;
+            margin-bottom: 8px;
             font-size: 14px;
             opacity: 0.9;
         }
@@ -169,7 +171,19 @@
             font-size: 12px;
             opacity: 0.7;
             text-align: right;
-            margin-top: 4px;
+            margin-top: 8px;
+        }
+        
+        .message-image {
+            max-width: 100%;
+            border-radius: 12px;
+            margin-top: 8px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .message-image:hover {
+            transform: scale(1.02);
         }
         
         .message-input-container {
@@ -179,6 +193,7 @@
             display: flex;
             gap: 12px;
             flex-shrink: 0;
+            align-items: center;
         }
         
         .message-input-container input {
@@ -188,8 +203,19 @@
         }
         
         .message-input-container button {
-            width: auto;
             padding: 14px 20px;
+            white-space: nowrap;
+        }
+        
+        .upload-btn {
+            background: #48bb78;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .upload-btn:hover {
+            background: #38a169;
         }
         
         .user-info {
@@ -219,6 +245,63 @@
             margin: 8px 0;
         }
         
+        .image-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-content {
+            max-width: 90%;
+            max-height: 90%;
+        }
+        
+        .modal-content img {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 8px;
+        }
+        
+        .close-modal {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: white;
+            font-size: 30px;
+            cursor: pointer;
+            background: rgba(0, 0, 0, 0.5);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .upload-progress {
+            width: 100%;
+            height: 4px;
+            background: #e2e8f0;
+            border-radius: 2px;
+            margin-top: 8px;
+            overflow: hidden;
+            display: none;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: #667eea;
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
         @media (max-width: 768px) {
             .message {
                 max-width: 85%;
@@ -230,10 +313,18 @@
             
             .message-input-container {
                 padding: 12px;
+                flex-wrap: wrap;
             }
             
             .message-input-container button {
                 padding: 12px 16px;
+                flex: 1;
+            }
+            
+            .upload-btn {
+                order: -1;
+                width: 100%;
+                margin-bottom: 8px;
             }
         }
         
@@ -278,21 +369,37 @@
                 
                 <div class="chat-messages" id="chatMessages">
                     <div class="system-message">
-                        Добро пожаловать в общий чат! Начните общение.
+                        Добро пожаловать в общий чат! Отправляйте текстовые сообщения и изображения.
                     </div>
                 </div>
                 
                 <div class="message-input-container">
+                    <input type="file" id="imageInput" accept="image/*" style="display: none;">
+                    <button class="upload-btn" id="uploadButton">
+                        📷 Фото
+                    </button>
                     <input type="text" id="messageInput" placeholder="Введите ваше сообщение...">
                     <button id="sendButton">Отправить</button>
                 </div>
+                <div class="upload-progress" id="uploadProgress">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для просмотра изображений -->
+    <div class="image-modal" id="imageModal">
+        <div class="close-modal" id="closeModal">×</div>
+        <div class="modal-content">
+            <img id="modalImage" src="">
         </div>
     </div>
 
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
 
     <script>
         // Конфигурация Firebase
@@ -306,10 +413,11 @@
         };
 
         // Попытка инициализации Firebase
-        let db;
+        let db, storage;
         try {
             const app = firebase.initializeApp(firebaseConfig);
             db = firebase.firestore();
+            storage = firebase.storage();
         } catch (error) {
             console.error('Ошибка инициализации Firebase:', error);
         }
@@ -323,6 +431,13 @@
         const chatMessages = document.getElementById('chatMessages');
         const messageInput = document.getElementById('messageInput');
         const sendButton = document.getElementById('sendButton');
+        const imageInput = document.getElementById('imageInput');
+        const uploadButton = document.getElementById('uploadButton');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const progressBar = document.getElementById('progressBar');
+        const imageModal = document.getElementById('imageModal');
+        const modalImage = document.getElementById('modalImage');
+        const closeModal = document.getElementById('closeModal');
         
         let username = '';
         
@@ -343,29 +458,99 @@
             }
         });
         
-        // Отправка сообщения
-        sendButton.addEventListener('click', sendMessage);
-        messageInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                sendMessage();
+        // Открытие выбора файла
+        uploadButton.addEventListener('click', () => {
+            imageInput.click();
+        });
+        
+        // Обработка выбора файла
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                if (file.size > 5 * 1024 * 1024) { // 5MB limit
+                    alert('Размер файла не должен превышать 5MB');
+                    return;
+                }
+                uploadImage(file);
             }
         });
         
-        function sendMessage() {
+        // Загрузка изображения
+        function uploadImage(file) {
+            if (!storage) {
+                alert('Firebase Storage не настроен');
+                return;
+            }
+            
+            const timestamp = Date.now();
+            const storageRef = storage.ref().child(`images/${timestamp}_${file.name}`);
+            const uploadTask = storageRef.put(file);
+            
+            // Показываем прогресс загрузки
+            uploadProgress.style.display = 'block';
+            
+            uploadTask.on('state_changed',
+                (snapshot) => {
+                    // Прогресс загрузки
+                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    progressBar.style.width = progress + '%';
+                },
+                (error) => {
+                    // Ошибка загрузки
+                    console.error('Ошибка загрузки:', error);
+                    uploadProgress.style.display = 'none';
+                    alert('Ошибка загрузки изображения');
+                },
+                () => {
+                    // Загрузка завершена
+                    uploadTask.snapshot.ref.getDownloadURL().then((downloadURL) => {
+                        // Сохраняем URL изображения в Firestore
+                        sendImageMessage(downloadURL);
+                        uploadProgress.style.display = 'none';
+                        progressBar.style.width = '0%';
+                    });
+                }
+            );
+        }
+        
+        // Отправка сообщения с изображением
+        function sendImageMessage(imageUrl) {
+            if (db) {
+                db.collection('messages').add({
+                    type: 'image',
+                    imageUrl: imageUrl,
+                    sender: username,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                }).catch((error) => {
+                    console.error('Ошибка отправки изображения:', error);
+                });
+            } else {
+                // Демо-режим
+                displayImageMessage(imageUrl, username);
+            }
+        }
+        
+        // Отправка текстового сообщения
+        sendButton.addEventListener('click', sendTextMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendTextMessage();
+            }
+        });
+        
+        function sendTextMessage() {
             const messageText = messageInput.value.trim();
             if (messageText && username) {
                 if (db) {
-                    // Добавление сообщения в Firestore
                     db.collection('messages').add({
+                        type: 'text',
                         text: messageText,
                         sender: username,
                         timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                    })
-                    .then(() => {
+                    }).then(() => {
                         messageInput.value = '';
-                    })
-                    .catch((error) => {
-                        console.error('Ошибка отправки сообщения: ', error);
+                    }).catch((error) => {
+                        console.error('Ошибка отправки сообщения:', error);
                     });
                 } else {
                     // Демо-режим
@@ -379,8 +564,6 @@
                     
                     chatMessages.appendChild(messageDiv);
                     messageInput.value = '';
-                    
-                    // Прокрутка вниз
                     chatMessages.scrollTop = chatMessages.scrollHeight;
                 }
             }
@@ -393,21 +576,17 @@
                 return;
             }
             
-            // Загрузка последних 50 сообщений
             db.collection('messages')
                 .orderBy('timestamp', 'desc')
                 .limit(50)
                 .onSnapshot((querySnapshot) => {
                     const messages = [];
                     querySnapshot.forEach((doc) => {
-                        messages.push(doc.data());
+                        messages.push({ id: doc.id, ...doc.data() });
                     });
-                    
-                    // Отображаем сообщения в обратном порядке (самые новые внизу)
                     displayMessages(messages.reverse());
                 }, (error) => {
-                    console.error('Ошибка загрузки сообщений: ', error);
-                    // Показываем демо-сообщения в случае ошибки
+                    console.error('Ошибка загрузки сообщений:', error);
                     displayDemoMessages();
                 });
         }
@@ -425,26 +604,67 @@
             }
             
             messages.forEach((msg) => {
-                const messageDiv = document.createElement('div');
-                const isMyMessage = msg.sender === username;
-                
-                messageDiv.className = isMyMessage ? 'message my-message' : 'message other-message';
-                
-                const messageTime = msg.timestamp ? 
-                    new Date(msg.timestamp.toDate()).toLocaleTimeString() : 'Только что';
-                
-                messageDiv.innerHTML = `
-                    <div class="message-sender">${msg.sender}</div>
-                    <div>${msg.text}</div>
-                    <div class="message-time">${messageTime}</div>
-                `;
-                
-                chatMessages.appendChild(messageDiv);
+                if (msg.type === 'image') {
+                    displayImageMessage(msg.imageUrl, msg.sender, msg.timestamp);
+                } else {
+                    displayTextMessage(msg.text, msg.sender, msg.timestamp);
+                }
             });
             
-            // Прокрутка вниз
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
+        
+        function displayTextMessage(text, sender, timestamp) {
+            const messageDiv = document.createElement('div');
+            const isMyMessage = sender === username;
+            
+            messageDiv.className = isMyMessage ? 'message my-message' : 'message other-message';
+            
+            const messageTime = timestamp ? 
+                new Date(timestamp.toDate()).toLocaleTimeString() : 'Только что';
+            
+            messageDiv.innerHTML = `
+                <div class="message-sender">${sender}</div>
+                <div>${text}</div>
+                <div class="message-time">${messageTime}</div>
+            `;
+            
+            chatMessages.appendChild(messageDiv);
+        }
+        
+        function displayImageMessage(imageUrl, sender, timestamp) {
+            const messageDiv = document.createElement('div');
+            const isMyMessage = sender === username;
+            
+            messageDiv.className = isMyMessage ? 'message my-message' : 'message other-message';
+            
+            const messageTime = timestamp ? 
+                new Date(timestamp.toDate()).toLocaleTimeString() : 'Только что';
+            
+            messageDiv.innerHTML = `
+                <div class="message-sender">${sender}</div>
+                <img src="${imageUrl}" class="message-image" alt="Изображение" onclick="openModal('${imageUrl}')">
+                <div class="message-time">${messageTime}</div>
+            `;
+            
+            chatMessages.appendChild(messageDiv);
+        }
+        
+        // Функции для модального окна
+        window.openModal = function(imageUrl) {
+            modalImage.src = imageUrl;
+            imageModal.style.display = 'flex';
+        };
+        
+        closeModal.addEventListener('click', () => {
+            imageModal.style.display = 'none';
+        });
+        
+        imageModal.addEventListener('click', (e) => {
+            if (e.target === imageModal) {
+                imageModal.style.display = 'none';
+            }
+        });
         
         function displayDemoMessages() {
             chatMessages.innerHTML = `
@@ -453,25 +673,19 @@
                 </div>
                 <div class="message other-message">
                     <div class="message-sender">Андрей</div>
-                    <div>Привет! Как дела?</div>
+                    <div>Привет! Посмотрите на это фото:</div>
+                    <img src="https://via.placeholder.com/300x200?text=Демо+изображение" class="message-image" onclick="openModal('https://via.placeholder.com/300x200?text=Демо+изображение')">
                     <div class="message-time">12:30</div>
-                </div>
-                <div class="message other-message">
-                    <div class="message-sender">Мария</div>
-                    <div>Кто-нибудь уже пробовал новый ресторан в центре?</div>
-                    <div class="message-time">12:45</div>
                 </div>
                 <div class="message my-message">
                     <div class="message-sender">Вы</div>
-                    <div>Привет всем! Я только что присоединился к чату.</div>
+                    <div>Крутое фото! Вот мое:</div>
+                    <img src="https://via.placeholder.com/250x150?text=Ваше+изображение" class="message-image" onclick="openModal('https://via.placeholder.com/250x150?text=Ваше+изображение')">
                     <div class="message-time">Только что</div>
                 </div>
             `;
             
-            // Прокрутка вниз
-            setTimeout(() => {
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-            }, 100);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
         }
     </script>
 </body>
