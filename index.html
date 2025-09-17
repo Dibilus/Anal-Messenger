@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Anal Messenger</title>
+    <title>Общий чат</title>
     <style>
         * {
             box-sizing: border-box;
@@ -176,6 +176,7 @@
         
         .message-image {
             max-width: 100%;
+            max-height: 300px;
             border-radius: 12px;
             margin-top: 8px;
             cursor: pointer;
@@ -302,6 +303,17 @@
             transition: width 0.3s;
         }
         
+        .compress-warning {
+            font-size: 12px;
+            color: #718096;
+            text-align: center;
+            padding: 8px;
+            background: #fff5f5;
+            border-radius: 6px;
+            margin-top: 8px;
+            display: none;
+        }
+        
         @media (max-width: 768px) {
             .message {
                 max-width: 85%;
@@ -326,25 +338,10 @@
                 width: 100%;
                 margin-bottom: 8px;
             }
-        }
-        
-        /* Стили для скроллбара */
-        .chat-messages::-webkit-scrollbar {
-            width: 6px;
-        }
-        
-        .chat-messages::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 3px;
-        }
-        
-        .chat-messages::-webkit-scrollbar-thumb {
-            background: #cbd5e0;
-            border-radius: 3px;
-        }
-        
-        .chat-messages::-webkit-scrollbar-thumb:hover {
-            background: #a0aec0;
+            
+            .message-image {
+                max-height: 200px;
+            }
         }
     </style>
 </head>
@@ -381,8 +378,8 @@
                     <input type="text" id="messageInput" placeholder="Введите ваше сообщение...">
                     <button id="sendButton">Отправить</button>
                 </div>
-                <div class="upload-progress" id="uploadProgress">
-                    <div class="progress-bar" id="progressBar"></div>
+                <div class="compress-warning" id="compressWarning">
+                    Изображение сжато для быстрой отправки (макс. 1MB)
                 </div>
             </div>
         </div>
@@ -399,7 +396,6 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
 
     <script>
         // Конфигурация Firebase
@@ -413,11 +409,10 @@
         };
 
         // Попытка инициализации Firebase
-        let db, storage;
+        let db;
         try {
             const app = firebase.initializeApp(firebaseConfig);
             db = firebase.firestore();
-            storage = firebase.storage();
         } catch (error) {
             console.error('Ошибка инициализации Firebase:', error);
         }
@@ -433,8 +428,7 @@
         const sendButton = document.getElementById('sendButton');
         const imageInput = document.getElementById('imageInput');
         const uploadButton = document.getElementById('uploadButton');
-        const uploadProgress = document.getElementById('uploadProgress');
-        const progressBar = document.getElementById('progressBar');
+        const compressWarning = document.getElementById('compressWarning');
         const imageModal = document.getElementById('imageModal');
         const modalImage = document.getElementById('modalImage');
         const closeModal = document.getElementById('closeModal');
@@ -467,66 +461,82 @@
         imageInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file) {
-                if (file.size > 5 * 1024 * 1024) { // 5MB limit
-                    alert('Размер файла не должен превышать 5MB');
-                    return;
-                }
-                uploadImage(file);
+                compressAndSendImage(file);
             }
         });
         
-        // Загрузка изображения
-        function uploadImage(file) {
-            if (!storage) {
-                alert('Firebase Storage не настроен');
+        // Сжатие и отправка изображения
+        function compressAndSendImage(file) {
+            if (file.size > 5 * 1024 * 1024) {
+                alert('Размер файла не должен превышать 5MB');
                 return;
             }
             
-            const timestamp = Date.now();
-            const storageRef = storage.ref().child(`images/${timestamp}_${file.name}`);
-            const uploadTask = storageRef.put(file);
-            
-            // Показываем прогресс загрузки
-            uploadProgress.style.display = 'block';
-            
-            uploadTask.on('state_changed',
-                (snapshot) => {
-                    // Прогресс загрузки
-                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                    progressBar.style.width = progress + '%';
-                },
-                (error) => {
-                    // Ошибка загрузки
-                    console.error('Ошибка загрузки:', error);
-                    uploadProgress.style.display = 'none';
-                    alert('Ошибка загрузки изображения');
-                },
-                () => {
-                    // Загрузка завершена
-                    uploadTask.snapshot.ref.getDownloadURL().then((downloadURL) => {
-                        // Сохраняем URL изображения в Firestore
-                        sendImageMessage(downloadURL);
-                        uploadProgress.style.display = 'none';
-                        progressBar.style.width = '0%';
-                    });
-                }
-            );
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    // Создаем canvas для сжатия
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Максимальные размеры
+                    const MAX_WIDTH = 800;
+                    const MAX_HEIGHT = 600;
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    // Изменяем размер если нужно
+                    if (width > height) {
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
+                    } else {
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height;
+                            height = MAX_HEIGHT;
+                        }
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // Конвертируем в base64 с качеством 0.7
+                    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                    
+                    // Показываем предупреждение о сжатии
+                    if (file.size > 1024 * 1024) {
+                        compressWarning.style.display = 'block';
+                        setTimeout(() => {
+                            compressWarning.style.display = 'none';
+                        }, 3000);
+                    }
+                    
+                    // Отправляем сжатое изображение
+                    sendImageMessage(compressedDataUrl);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
         }
         
         // Отправка сообщения с изображением
-        function sendImageMessage(imageUrl) {
+        function sendImageMessage(imageData) {
             if (db) {
                 db.collection('messages').add({
                     type: 'image',
-                    imageUrl: imageUrl,
+                    imageData: imageData,
                     sender: username,
                     timestamp: firebase.firestore.FieldValue.serverTimestamp()
                 }).catch((error) => {
                     console.error('Ошибка отправки изображения:', error);
+                    alert('Ошибка отправки изображения');
                 });
             } else {
                 // Демо-режим
-                displayImageMessage(imageUrl, username);
+                displayImageMessage(imageData, username);
             }
         }
         
@@ -578,7 +588,7 @@
             
             db.collection('messages')
                 .orderBy('timestamp', 'desc')
-                .limit(50)
+                .limit(30) // Ограничиваем для экономии трафика
                 .onSnapshot((querySnapshot) => {
                     const messages = [];
                     querySnapshot.forEach((doc) => {
@@ -605,7 +615,7 @@
             
             messages.forEach((msg) => {
                 if (msg.type === 'image') {
-                    displayImageMessage(msg.imageUrl, msg.sender, msg.timestamp);
+                    displayImageMessage(msg.imageData, msg.sender, msg.timestamp);
                 } else {
                     displayTextMessage(msg.text, msg.sender, msg.timestamp);
                 }
@@ -632,7 +642,7 @@
             chatMessages.appendChild(messageDiv);
         }
         
-        function displayImageMessage(imageUrl, sender, timestamp) {
+        function displayImageMessage(imageData, sender, timestamp) {
             const messageDiv = document.createElement('div');
             const isMyMessage = sender === username;
             
@@ -643,7 +653,7 @@
             
             messageDiv.innerHTML = `
                 <div class="message-sender">${sender}</div>
-                <img src="${imageUrl}" class="message-image" alt="Изображение" onclick="openModal('${imageUrl}')">
+                <img src="${imageData}" class="message-image" alt="Изображение" onclick="openModal('${imageData}')">
                 <div class="message-time">${messageTime}</div>
             `;
             
@@ -651,8 +661,8 @@
         }
         
         // Функции для модального окна
-        window.openModal = function(imageUrl) {
-            modalImage.src = imageUrl;
+        window.openModal = function(imageData) {
+            modalImage.src = imageData;
             imageModal.style.display = 'flex';
         };
         
