@@ -660,7 +660,7 @@
             
             db.collection('messages')
                 .orderBy('timestamp', 'desc')
-                .limit(30) // Ограничиваем для экономии трафика
+                .limit(500) // Ограничиваем для экономии трафика
                 .onSnapshot((querySnapshot) => {
                     const messages = [];
                     querySnapshot.forEach((doc) => {
