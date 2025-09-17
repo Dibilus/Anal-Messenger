@@ -210,15 +210,26 @@
             white-space: nowrap;
         }
         
+        /* Новая кнопка загрузки в виде скрепки */
         .upload-btn {
-            background: #48bb78;
+            background: #e2e8f0;
+            color: #4a5568;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 18px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            justify-content: center;
+            width: 44px;
+            height: 44px;
+            transition: all 0.2s;
         }
         
         .upload-btn:hover {
-            background: #38a169;
+            background: #cbd5e0;
+            transform: scale(1.05);
         }
         
         .user-info {
@@ -331,6 +342,11 @@
             cursor: pointer;
             font-size: 16px;
             transition: transform 0.2s;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         
         .like-btn:hover {
@@ -341,6 +357,8 @@
             font-size: 12px;
             color: inherit;
             opacity: 0.8;
+            min-width: 16px;
+            text-align: center;
         }
         
         .my-message .likes-container {
@@ -382,8 +400,9 @@
             
             .upload-btn {
                 order: -1;
-                width: 100%;
-                margin-bottom: 8px;
+                width: 40px;
+                height: 40px;
+                margin-bottom: 0;
             }
             
             .message-image {
@@ -419,8 +438,8 @@
                 
                 <div class="message-input-container">
                     <input type="file" id="imageInput" accept="image/*" style="display: none;">
-                    <button class="upload-btn" id="uploadButton">
-                        📷 Фото
+                    <button class="upload-btn" id="uploadButton" title="Прикрепить фото">
+                        📎
                     </button>
                     <input type="text" id="messageInput" placeholder="Введите ваше сообщение...">
                     <button id="sendButton">Отправить</button>
@@ -694,7 +713,7 @@
                 <div class="message-time">${messageTime}</div>
                 <div class="likes-container">
                     <button class="like-btn" onclick="toggleLike('${messageId}', ${likes}, ${JSON.stringify(likedBy)})">
-                        ${isLiked ? '❤️' : '🤍'}
+                        ${isLiked ? '👍' : '👍'}
                     </button>
                     <span class="like-count">${likes > 0 ? likes : ''}</span>
                 </div>
@@ -723,7 +742,7 @@
                 <div class="message-time">${messageTime}</div>
                 <div class="likes-container">
                     <button class="like-btn" onclick="toggleLike('${messageId}', ${likes}, ${JSON.stringify(likedBy)})">
-                        ${isLiked ? '❤️' : '🤍'}
+                        ${isLiked ? '👍' : '👍'}
                     </button>
                     <span class="like-count">${likes > 0 ? likes : ''}</span>
                 </div>
@@ -796,7 +815,13 @@
             const likeCount = messageElement.querySelector('.like-count');
             const isLiked = likedBy.includes(username);
             
-            likeBtn.innerHTML = isLiked ? '❤️' : '🤍';
+            // Для визуального отличия лайкнутого сообщения можно добавить стиль
+            if (isLiked) {
+                likeBtn.style.filter = 'brightness(1.2)';
+            } else {
+                likeBtn.style.filter = 'brightness(0.8)';
+            }
+            
             likeBtn.classList.add('like-animation');
             setTimeout(() => {
                 likeBtn.classList.remove('like-animation');
@@ -833,7 +858,7 @@
                     <div class="message-time">12:30</div>
                     <div class="likes-container">
                         <button class="like-btn" onclick="toggleLike('demo1', 2, ['Андрей', 'Мария'])">
-                            🤍
+                            👍
                         </button>
                         <span class="like-count">2</span>
                     </div>
@@ -845,7 +870,7 @@
                     <div class="message-time">Только что</div>
                     <div class="likes-container">
                         <button class="like-btn" onclick="toggleLike('demo2', 0, [])">
-                            🤍
+                            👍
                         </button>
                         <span class="like-count"></span>
                     </div>
