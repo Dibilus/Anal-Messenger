@@ -37,20 +37,6 @@
             color: #4a5568;
         }
         
-        .sound-toggle {
-            background: none;
-            border: none;
-            font-size: 20px;
-            cursor: pointer;
-            padding: 8px;
-            border-radius: 50%;
-            transition: background 0.2s;
-        }
-        
-        .sound-toggle:hover {
-            background: rgba(102, 126, 234, 0.1);
-        }
-        
         .main-container {
             display: flex;
             flex-direction: column;
@@ -393,17 +379,6 @@
             100% { transform: scale(1); }
         }
         
-        /* Стиль для новых сообщений */
-        .new-message {
-            animation: newMessageGlow 1s ease;
-        }
-        
-        @keyframes newMessageGlow {
-            0% { box-shadow: 0 0 0 rgba(102, 126, 234, 0.3); }
-            50% { box-shadow: 0 0 20px rgba(102, 126, 234, 0.6); }
-            100% { box-shadow: 0 0 0 rgba(102, 126, 234, 0.3); }
-        }
-        
         @media (max-width: 768px) {
             .message {
                 max-width: 85%;
@@ -440,7 +415,6 @@
     <div class="main-container">
         <div class="header">
             <h1>Anal Messenger</h1>
-            <button class="sound-toggle" id="soundToggle" title="Включить/выключить звук">🔊</button>
         </div>
         
         <div class="chat-container">
@@ -485,11 +459,6 @@
         </div>
     </div>
 
-    <!-- Аудио элемент для звука уведомления -->
-    <audio id="messageSound" preload="auto">
-        <source src="data:audio/mpeg;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAA1N3aXRjaCBQbHVzIMKpIE5DSCBTb2Z0d2FyZQBUSVQyAAAABgAAAzIyMzUAVFNTRQAAAA8AAANMYXZmNTcuODMuMTAwAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV" type="audio/mpeg">
-    </audio>
-
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
@@ -529,35 +498,10 @@
         const imageModal = document.getElementById('imageModal');
         const modalImage = document.getElementById('modalImage');
         const closeModal = document.getElementById('closeModal');
-        const messageSound = document.getElementById('messageSound');
-        const soundToggle = document.getElementById('soundToggle');
         
         let username = '';
         let lastTap = 0;
-        let messageLikes = {};
-        let soundEnabled = true;
-        let lastMessageTime = null;
-        
-        // Включение/выключение звука
-        soundToggle.addEventListener('click', () => {
-            soundEnabled = !soundEnabled;
-            soundToggle.textContent = soundEnabled ? '🔊' : '🔇';
-            soundToggle.title = soundEnabled ? 'Выключить звук' : 'Включить звук';
-        });
-        
-        // Воспроизведение звука уведомления
-        function playMessageSound() {
-            if (!soundEnabled) return;
-            
-            try {
-                messageSound.currentTime = 0;
-                messageSound.play().catch(e => {
-                    console.log('Автовоспроизведение звука заблокировано браузером');
-                });
-            } catch (error) {
-                console.log('Ошибка воспроизведения звука:', error);
-            }
-        }
+        let messageLikes = {}; // Хранит лайки для каждого сообщения
         
         // Вход в чат
         loginButton.addEventListener('click', () => {
@@ -600,14 +544,17 @@
             reader.onload = function(e) {
                 const img = new Image();
                 img.onload = function() {
+                    // Создаем canvas для сжатия
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
                     
+                    // Максимальные размеры
                     const MAX_WIDTH = 800;
                     const MAX_HEIGHT = 600;
                     let width = img.width;
                     let height = img.height;
                     
+                    // Изменяем размер если нужно
                     if (width > height) {
                         if (width > MAX_WIDTH) {
                             height *= MAX_WIDTH / width;
@@ -624,8 +571,10 @@
                     canvas.height = height;
                     ctx.drawImage(img, 0, 0, width, height);
                     
+                    // Конвертируем в base64 с качеством 0.7
                     const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
                     
+                    // Показываем предупреждение о сжатии
                     if (file.size > 1024 * 1024) {
                         compressWarning.style.display = 'block';
                         setTimeout(() => {
@@ -633,6 +582,7 @@
                         }, 3000);
                     }
                     
+                    // Отправляем сжатое изображение
                     sendImageMessage(compressedDataUrl);
                 };
                 img.src = e.target.result;
@@ -655,6 +605,7 @@
                     alert('Ошибка отправки изображения');
                 });
             } else {
+                // Демо-режим
                 displayImageMessage(imageData, username);
             }
         }
@@ -684,6 +635,7 @@
                         console.error('Ошибка отправки сообщения:', error);
                     });
                 } else {
+                    // Демо-режим
                     const messageDiv = document.createElement('div');
                     messageDiv.className = 'message my-message';
                     messageDiv.innerHTML = `
@@ -708,29 +660,13 @@
             
             db.collection('messages')
                 .orderBy('timestamp', 'desc')
-                .limit(30)
+                .limit(500) // Ограничиваем для экономии трафика
                 .onSnapshot((querySnapshot) => {
                     const messages = [];
                     querySnapshot.forEach((doc) => {
                         messages.push({ id: doc.id, ...doc.data() });
                     });
-                    
-                    const currentTime = new Date().getTime();
-                    const isNewMessage = lastMessageTime === null || 
-                        messages.some(msg => msg.timestamp && 
-                            msg.timestamp.toDate().getTime() > lastMessageTime);
-                    
                     displayMessages(messages.reverse());
-                    
-                    // Воспроизводим звук только для новых сообщений от других пользователей
-                    if (isNewMessage && messages.length > 0) {
-                        const latestMessage = messages[messages.length - 1];
-                        if (latestMessage.sender !== username) {
-                            playMessageSound();
-                        }
-                    }
-                    
-                    lastMessageTime = currentTime;
                 }, (error) => {
                     console.error('Ошибка загрузки сообщений:', error);
                     displayDemoMessages();
@@ -783,17 +719,9 @@
                 </div>
             `;
             
-            // Анимация для новых сообщений
-            if (!isMyMessage) {
-                setTimeout(() => {
-                    messageDiv.classList.add('new-message');
-                    setTimeout(() => {
-                        messageDiv.classList.remove('new-message');
-                    }, 1000);
-                }, 100);
-            }
-            
+            // Добавляем обработчик двойного нажатия
             setupDoubleTap(messageDiv, messageId, likes, likedBy);
+            
             chatMessages.appendChild(messageDiv);
         }
         
@@ -820,23 +748,16 @@
                 </div>
             `;
             
-            // Анимация для новых сообщений
-            if (!isMyMessage) {
-                setTimeout(() => {
-                    messageDiv.classList.add('new-message');
-                    setTimeout(() => {
-                        messageDiv.classList.remove('new-message');
-                    }, 1000);
-                }, 100);
-            }
-            
+            // Добавляем обработчик двойного нажатия
             setupDoubleTap(messageDiv, messageId, likes, likedBy);
+            
             chatMessages.appendChild(messageDiv);
         }
         
         // Настройка двойного нажатия для лайков
         function setupDoubleTap(element, messageId, likes, likedBy) {
             element.addEventListener('click', (e) => {
+                // Игнорируем клики по кнопке лайка и изображениям
                 if (e.target.closest('.like-btn') || e.target.classList.contains('message-image')) {
                     return;
                 }
@@ -845,6 +766,7 @@
                 const tapLength = currentTime - lastTap;
                 
                 if (tapLength < 300 && tapLength > 0) {
+                    // Двойное нажатие
                     toggleLike(messageId, likes, likedBy);
                 }
                 
@@ -861,13 +783,16 @@
             let newLikedBy = [...likedBy];
             
             if (isLiked) {
+                // Убираем лайк
                 newLikes = Math.max(0, currentLikes - 1);
                 newLikedBy = newLikedBy.filter(user => user !== username);
             } else {
+                // Добавляем лайк
                 newLikes = currentLikes + 1;
                 newLikedBy.push(username);
             }
             
+            // Обновляем в Firebase
             if (db) {
                 db.collection('messages').doc(messageId).update({
                     likes: newLikes,
@@ -876,6 +801,7 @@
                     console.error('Ошибка обновления лайка:', error);
                 });
             } else {
+                // Демо-режим: обновляем только визуально
                 updateLikeUI(messageId, newLikes, newLikedBy);
             }
         };
@@ -889,6 +815,7 @@
             const likeCount = messageElement.querySelector('.like-count');
             const isLiked = likedBy.includes(username);
             
+            // Для визуального отличия лайкнутого сообщения можно добавить стиль
             if (isLiked) {
                 likeBtn.style.filter = 'brightness(1.2)';
             } else {
@@ -950,9 +877,7 @@
                 </div>
             `;
             
-            // Воспроизводим звук при демо-сообщениях
-            playMessageSound();
-            
+            // Добавляем обработчики двойного нажатия для демо-сообщений
             document.querySelectorAll('.message').forEach(message => {
                 const messageId = message.dataset.messageId;
                 const likes = parseInt(message.querySelector('.like-count').textContent) || 0;
